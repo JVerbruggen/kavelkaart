@@ -6,7 +6,11 @@ Deze repo is direct klaar voor deployment op de standaard GitHub Pages URL.
 
 Na deploy staat de site op:
 
-https://<jouw-gebruikersnaam>.github.io/kavels/
+https://<jouw-gebruikersnaam>.github.io/<repo-naam>/
+
+Voor deze repo is dat:
+
+https://jverbruggen.github.io/kavelkaart/
 
 ## Wat al voor je is ingericht
 
