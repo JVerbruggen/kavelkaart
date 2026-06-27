@@ -18,12 +18,16 @@ https://jverbruggen.github.io/kavelkaart/
 - `.nojekyll` (voorkomt Jekyll-interferentie)
 - `.github/workflows/deploy-pages.yml` (automatische deploy bij push naar `main`)
 
-## Eenmalig in GitHub klikken
+## Eenmalig in GitHub klikken (meestal niet nodig)
+
+De workflow probeert Pages automatisch te activeren via `enablement: true`.
+
+Alleen als je toch nog een fout ziet in Actions:
 
 1. Ga naar je repository op GitHub.
 2. Open **Settings** -> **Pages**.
 3. Kies bij **Build and deployment** als **Source**: **GitHub Actions**.
-4. Klaar. Elke push naar `main` deployt automatisch.
+4. Herstart daarna de workflow-run.
 
 ## Deploy triggeren
 
