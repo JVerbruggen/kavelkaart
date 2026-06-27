@@ -1,0 +1,1301 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NL Kavelkaart per Gemeente</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <style>
+    :root {
+      --bg: #f2efe7;
+      --ink: #1d2939;
+      --muted: #4f5965;
+      --line: #d5cec2;
+      --nodata: #d8dee8;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Space Grotesk", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 20% 15%, #fff8eb 0%, transparent 45%),
+        radial-gradient(circle at 80% 10%, #ffe7db 0%, transparent 45%),
+        var(--bg);
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    .topbar {
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(8px);
+      background: rgba(255, 250, 240, 0.88);
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .title-wrap h1 {
+      margin: 0;
+      font-size: clamp(1rem, 1.8vw, 1.35rem);
+      line-height: 1.2;
+      letter-spacing: 0.01em;
+    }
+
+    .title-wrap p {
+      margin: 4px 0 0;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    .chip {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #9a3412;
+      background: #ffedd5;
+      border: 1px solid #fdba74;
+      padding: 7px 10px;
+      border-radius: 999px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(320px, 430px) 1fr;
+      min-height: 0;
+    }
+
+    .panel {
+      border-right: 1px solid var(--line);
+      background: rgba(255, 250, 240, 0.92);
+      padding: 14px;
+      overflow: auto;
+    }
+
+    .panel h2 {
+      margin: 0;
+      font-size: 1rem;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      color: #7c2d12;
+    }
+
+    .viz-grid {
+      display: grid;
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .viz-wrap {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fff;
+      overflow: hidden;
+    }
+
+    .viz-head {
+      padding: 9px 10px;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #7c2d12;
+      background: #fff5eb;
+      border-bottom: 1px solid #ece7dd;
+      font-weight: 700;
+    }
+
+    .line-chart {
+      padding: 8px;
+      position: relative;
+    }
+    .line-chart svg { width: 100%; height: 170px; display: block; }
+
+    .chart-hover-line {
+      stroke: #4b5563;
+      stroke-width: 1;
+      stroke-dasharray: 3 3;
+      opacity: 0;
+      transition: opacity 120ms ease;
+      pointer-events: none;
+    }
+
+    .chart-hover-dot {
+      opacity: 0;
+      transition: opacity 120ms ease;
+      pointer-events: none;
+    }
+
+    .chart-hover-chip {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      background: rgba(17, 24, 39, 0.92);
+      color: #f9fafb;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      padding: 4px 9px;
+      white-space: nowrap;
+      max-width: calc(100% - 16px);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 120ms ease;
+      z-index: 2;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .chart-empty {
+      font-size: 0.82rem;
+      color: #6b7280;
+      padding: 12px 4px;
+      text-align: center;
+    }
+
+    .panel-health-wrap {
+      margin-top: 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .panel-health-head {
+      padding: 9px 10px;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #7c2d12;
+      background: #fff5eb;
+      border-bottom: 1px solid #ece7dd;
+      font-weight: 700;
+    }
+
+    .panel-health {
+      padding: 10px;
+      display: grid;
+      gap: 7px;
+    }
+
+    .panel-health .tip-health-row {
+      font-size: 0.75rem;
+    }
+
+    .stats-table-wrap {
+      margin-top: 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .stats-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.84rem;
+      table-layout: fixed;
+    }
+
+    .stats-table th,
+    .stats-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #ece7dd;
+      vertical-align: middle;
+    }
+
+    .stats-table thead th {
+      background: #fff5eb;
+      color: #7c2d12;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-size: 0.74rem;
+      font-weight: 700;
+    }
+
+    .stats-table tbody tr:nth-child(even) td { background: #fffcf7; }
+    .stats-table td.metric { color: #374151; width: 62%; }
+
+    .stats-table td.value {
+      width: 38%;
+      text-align: right;
+      font-weight: 700;
+      color: #111827;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .stats-table tbody tr:last-child td { border-bottom: 0; }
+
+    .help {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px dashed #f59e0b;
+      background: #fff7ed;
+      color: #7c2d12;
+      font-size: 0.86rem;
+      line-height: 1.4;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+      min-height: 65vh;
+    }
+
+    .legend {
+      background: rgba(255, 255, 255, 0.95);
+      border: 1px solid #d6d3d1;
+      border-radius: 10px;
+      padding: 10px;
+      line-height: 1.25;
+      color: #1f2937;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.15);
+      min-width: 170px;
+    }
+
+    .legend h4 {
+      margin: 0 0 8px;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #7c2d12;
+    }
+
+    .legend-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 4px 0;
+      font-size: 0.76rem;
+    }
+
+    .legend-box {
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
+      border: 1px solid rgba(0, 0, 0, 0.2);
+      flex-shrink: 0;
+    }
+
+    .leaflet-tooltip.kavel-tip {
+      background: #ffffff;
+      color: #1f2937;
+      border: 1px solid #d1d5db;
+      border-radius: 12px;
+      box-shadow: 0 12px 26px rgba(15, 23, 42, 0.18);
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 0.78rem;
+      padding: 9px 10px;
+      min-width: 240px;
+      max-width: 280px;
+    }
+
+    .leaflet-tooltip.kavel-tip::before { border-top-color: #ffffff; }
+
+    .tip-title {
+      font-size: 0.84rem;
+      font-weight: 700;
+      color: #111827;
+      margin-bottom: 3px;
+    }
+
+    .tip-sub {
+      font-size: 0.74rem;
+      color: #4b5563;
+      margin-bottom: 7px;
+      line-height: 1.35;
+    }
+
+    .tip-health {
+      display: grid;
+      gap: 7px;
+    }
+
+    .tip-health-row {
+      display: grid;
+      gap: 5px;
+      font-size: 0.72rem;
+      color: #374151;
+    }
+
+    .tip-health-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .tip-health-label {
+      font-weight: 600;
+      color: #1f2937;
+    }
+
+    .tip-health-bottom {
+      display: grid;
+      grid-template-columns: 80% 20%;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tip-health-track {
+      height: 8px;
+      border-radius: 999px;
+      background: #f3f4f6;
+      border: 1px solid #e5e7eb;
+      overflow: hidden;
+    }
+
+    .tip-health-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #6ee7b7, #16a34a);
+    }
+
+    .tip-health-value {
+      color: #4b5563;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .tip-health-rating {
+      text-align: right;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+      color: #475569;
+      white-space: nowrap;
+    }
+
+    .tip-health-rating.is-excellent,
+    .tip-health-rating.is-good {
+      color: #166534;
+    }
+
+    .tip-health-rating.is-neutral {
+      color: #92400e;
+    }
+
+    .tip-health-rating.is-poor {
+      color: #991b1b;
+    }
+
+    .tip-health-rating.is-nodata {
+      color: #6b7280;
+    }
+
+    @media (max-width: 1024px) {
+      .layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+      .panel { border-right: 0; border-bottom: 1px solid var(--line); }
+      #map { min-height: 70vh; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="title-wrap">
+      <h1>Nederlandse Kavelkaart per Gemeente</h1>
+      <p>Beweeg met de muis voor snelle info, klik voor details.</p>
+    </div>
+    <div class="chip" id="datasetChip">Dataset laden...</div>
+  </header>
+
+  <main class="layout">
+    <aside class="panel">
+      <h2 id="gemeenteName">Selecteer een gemeente</h2>
+
+      <div class="viz-grid">
+        <div class="viz-wrap">
+          <div class="viz-head">Prijsverdeling (x = euro, y = aantal)</div>
+          <div id="priceLineChart" class="line-chart"></div>
+        </div>
+
+        <div class="viz-wrap">
+          <div class="viz-head">Kavelgrootteverdeling (zelfbouw-range, x = m2, y = aantal)</div>
+          <div id="sizeLineChart" class="line-chart"></div>
+        </div>
+      </div>
+
+      <div class="panel-health-wrap">
+        <div class="panel-health-head">Snelle health-indicatie</div>
+        <div id="panelHealthBars" class="panel-health"></div>
+      </div>
+
+      <div class="stats-table-wrap">
+        <table class="stats-table" aria-label="Gemeente kavelstatistieken">
+          <thead>
+            <tr><th>Kengetal</th><th>Waarde</th></tr>
+          </thead>
+          <tbody id="statsTableBody"></tbody>
+        </table>
+      </div>
+
+      <div class="help" id="mappingStatus">Gemeente-koppeling voorbereiden...</div>
+    </aside>
+
+    <section id="map" aria-label="Gemeentekaart met kleurvlakken"></section>
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script>
+    const euroFmt = new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+    const intFmt = new Intl.NumberFormat("nl-NL");
+
+    const pricePalette = ["#ffffcc", "#ffeda0", "#fed976", "#feb24c", "#fd8d3c", "#f03b20", "#bd0026"];
+    const noDataColor = getComputedStyle(document.documentElement).getPropertyValue("--nodata").trim() || "#d8dee8";
+
+    const boundaryAliasToCitySlug = {
+      dantumadeel: "dantumadiel",
+      shertogenbosch: "den-bosch",
+      sgravenhage: "den-haag",
+      kesteren: "neder-betuwe",
+      rijssen: "rijssen-holten",
+      heerhugowaard: "dijk-en-waard",
+      langedijk: "dijk-en-waard",
+      boxmeer: "land-van-cuijk",
+      cuijk: "land-van-cuijk",
+      grave: "land-van-cuijk",
+      millensinthubert: "land-van-cuijk",
+      sintanthonis: "land-van-cuijk",
+      landerd: "maashorst",
+      uden: "maashorst",
+      brielle: "voorne-aan-zee",
+      hellevoetsluis: "voorne-aan-zee",
+      westvoorne: "voorne-aan-zee",
+    };
+
+    const map = L.map("map", { zoomControl: true, minZoom: 7, maxZoom: 12 });
+
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png", {
+      attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
+      subdomains: "abcd",
+    }).addTo(map);
+
+    const selection = {
+      geoLayer: null,
+      thresholds: [],
+      mappedCount: 0,
+      totalCount: 0,
+      hoverTooltip: null,
+      hoveredLayer: null,
+      chartDomains: {
+        price: null,
+        size: null,
+      },
+      marketBenchmarks: {
+        kavelCounts: [],
+        avgPrices: [],
+        avgPricePerM2: [],
+      },
+    };
+
+    function normalizeKey(value) {
+      return String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "");
+    }
+
+    function toTitle(value) {
+      return String(value || "")
+        .split("-")
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(" ");
+    }
+
+    function average(list) {
+      if (!list.length) return null;
+      return list.reduce((sum, value) => sum + value, 0) / list.length;
+    }
+
+    function quantile(sortedValues, q) {
+      if (!sortedValues.length) return null;
+      const index = Math.floor((sortedValues.length - 1) * q);
+      return sortedValues[index];
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function percentileRank(sortedValues, value) {
+      if (!Array.isArray(sortedValues) || sortedValues.length === 0 || !Number.isFinite(value)) return null;
+      if (sortedValues.length === 1) return 100;
+
+      let idx = -1;
+      for (let i = 0; i < sortedValues.length; i += 1) {
+        if (value >= sortedValues[i]) idx = i;
+        else break;
+      }
+      if (idx < 0) return 0;
+      return Math.round((idx / (sortedValues.length - 1)) * 100);
+    }
+
+    function lowerIsBetterScore(percentile) {
+      if (!Number.isFinite(percentile)) return null;
+      return Math.max(0, Math.min(100, 100 - percentile));
+    }
+
+    function getHealthRating(score) {
+      if (!Number.isFinite(score)) return { label: "n.v.t.", cls: "is-nodata" };
+      if (score >= 80) return { label: "Sterk", cls: "is-excellent" };
+      if (score >= 60) return { label: "Goed", cls: "is-good" };
+      if (score >= 40) return { label: "Midden", cls: "is-neutral" };
+      return { label: "Zwak", cls: "is-poor" };
+    }
+
+    function buildHealthRow(label, score, valueText) {
+      const width = Number.isFinite(score) ? Math.max(0, Math.min(100, Math.round(score))) : 0;
+      const percentile = Number.isFinite(score) ? `P${width}` : "-";
+      const safeLabel = escapeHtml(label);
+      const safeValueText = escapeHtml(valueText || "Geen data");
+      const rating = getHealthRating(score);
+      const safeRating = escapeHtml(rating.label);
+      const safeRatingClass = escapeHtml(rating.cls);
+
+      return `
+        <div class="tip-health-row">
+          <div class="tip-health-meta">
+            <span class="tip-health-label">${safeLabel}</span>
+            <span class="tip-health-value">${safeValueText} · ${percentile}</span>
+          </div>
+          <div class="tip-health-bottom">
+            <div class="tip-health-track"><div class="tip-health-fill" style="width:${width}%"></div></div>
+            <span class="tip-health-rating ${safeRatingClass}">${safeRating}</span>
+          </div>
+        </div>
+      `;
+    }
+
+    function buildHoverTooltipContent(data, fallbackName) {
+      const title = escapeHtml(data?.displayName || fallbackName);
+      if (!data) {
+        return `
+          <div class="tip-title">${title}</div>
+          <div class="tip-sub">Geen kaveldata beschikbaar.</div>
+          <div class="tip-health">
+            ${buildHealthRow("Kavelaanbod", null, "Geen data")}
+            ${buildHealthRow("Gem. prijs vs markt", null, "Geen data")}
+            ${buildHealthRow("Prijs per m2 vs markt", null, "Geen data")}
+          </div>
+        `;
+      }
+
+      const market = selection.marketBenchmarks;
+      const kavelScore = percentileRank(market.kavelCounts, data.kavelCount);
+      const avgPriceScore = lowerIsBetterScore(percentileRank(market.avgPrices, data.avgPrice));
+      const priceM2Score = lowerIsBetterScore(percentileRank(market.avgPricePerM2, data.avgPricePerM2));
+
+      return `
+        <div class="tip-title">${title}</div>
+        <div class="tip-sub">Laagste totaalprijs: ${escapeHtml(formatEuro(data.minPrice))}<br/>Gem. m2: ${escapeHtml(formatArea(data.avgArea))}<br/>Groen = gunstiger t.o.v. markt.</div>
+        <div class="tip-health">
+          ${buildHealthRow("Kavelaanbod", kavelScore, `${intFmt.format(data.kavelCount)} kavels`)}
+          ${buildHealthRow("Gem. prijs vs markt", avgPriceScore, formatEuro(data.avgPrice))}
+          ${buildHealthRow("Prijs per m2 vs markt", priceM2Score, formatEuroPerM2(data.avgPricePerM2))}
+        </div>
+      `;
+    }
+
+    function getDomain(values) {
+      if (!Array.isArray(values) || values.length === 0) return null;
+      let min = Math.min(...values);
+      let max = Math.max(...values);
+      if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+      if (max === min) max = min + 1;
+      return { min, max };
+    }
+
+    function niceStep(range) {
+      if (!Number.isFinite(range) || range <= 0) return 1;
+      const rough = range / 8;
+      const magnitude = 10 ** Math.floor(Math.log10(rough));
+      const factors = [1, 2, 5, 10];
+      for (const factor of factors) {
+        const step = factor * magnitude;
+        if (step >= rough) return step;
+      }
+      return 10 * magnitude;
+    }
+
+    function getRobustDomain(values, lowQ = 0.03, highQ = 0.97) {
+      if (!Array.isArray(values) || values.length === 0) return null;
+      const sorted = [...values].filter(Number.isFinite).sort((a, b) => a - b);
+      if (!sorted.length) return null;
+      if (sorted.length < 12) return getDomain(sorted);
+
+      const qLow = quantile(sorted, lowQ);
+      const qHigh = quantile(sorted, highQ);
+      if (!Number.isFinite(qLow) || !Number.isFinite(qHigh)) return getDomain(sorted);
+
+      let min = Math.min(qLow, qHigh);
+      let max = Math.max(qLow, qHigh);
+      if (max === min) max = min + 1;
+
+      const span = max - min;
+      const paddedMin = Math.max(0, min - span * 0.08);
+      const paddedMax = max + span * 0.08;
+      const step = niceStep(paddedMax - paddedMin);
+
+      min = Math.floor(paddedMin / step) * step;
+      max = Math.ceil(paddedMax / step) * step;
+      if (max <= min) max = min + step;
+      return { min, max };
+    }
+
+    function getSelfBuildSizeDomain(values) {
+      if (!Array.isArray(values) || values.length === 0) return null;
+      const sorted = [...values].filter((v) => Number.isFinite(v) && v > 0).sort((a, b) => a - b);
+      if (!sorted.length) return null;
+
+      const q05 = quantile(sorted, 0.05);
+      const q95 = quantile(sorted, 0.95);
+
+      const defaultDomain = { min: 100, max: 2500 };
+      if (!Number.isFinite(q05) || !Number.isFinite(q95)) return defaultDomain;
+
+      let min = Math.max(100, Math.floor(q05 / 50) * 50);
+      let max = Math.min(2500, Math.ceil(q95 / 50) * 50);
+
+      if (max - min < 400) max = Math.min(2500, min + 400);
+      if (max <= min) return defaultDomain;
+
+      return { min, max };
+    }
+
+    function filterValuesToDomain(values, domain) {
+      if (!Array.isArray(values) || !domain || !Number.isFinite(domain.min) || !Number.isFinite(domain.max)) {
+        return [];
+      }
+      return values.filter((v) => Number.isFinite(v) && v >= domain.min && v <= domain.max);
+    }
+
+    function formatEuro(value) {
+      return Number.isFinite(value) ? euroFmt.format(value) : "Geen geprijsde kavels";
+    }
+
+    function formatArea(value) {
+      return Number.isFinite(value) ? `${intFmt.format(Math.round(value))} m2` : "Geen m2-data";
+    }
+
+    function formatEuroPerM2(value) {
+      return Number.isFinite(value) ? `${euroFmt.format(Math.round(value))} /m2` : "Geen prijs/m2-data";
+    }
+
+    function formatCountShare(count, total) {
+      if (!Number.isFinite(count) || !Number.isFinite(total) || total <= 0) return "-";
+      const pct = Math.round((count / total) * 100);
+      return `${intFmt.format(count)} (${pct}%)`;
+    }
+
+    function formatEuroAxis(value) {
+      if (!Number.isFinite(value)) return "-";
+      if (value >= 1000000) return `€${(value / 1000000).toFixed(1).replace(".", ",")}M`;
+      if (value >= 1000) return `€${Math.round(value / 1000)}k`;
+      return `€${Math.round(value)}`;
+    }
+
+    function formatM2Axis(value) {
+      if (!Number.isFinite(value)) return "-";
+      if (value >= 1000) return `${(value / 1000).toFixed(1).replace(".", ",")}k`;
+      return `${Math.round(value)}`;
+    }
+
+    function hideHoverTooltip() {
+      if (selection.hoverTooltip) selection.hoverTooltip.remove();
+    }
+
+    function showHoverTooltip(latlng, html) {
+      if (!selection.hoverTooltip) {
+        selection.hoverTooltip = L.tooltip({
+          className: "kavel-tip",
+          direction: "top",
+          opacity: 0.96,
+          offset: [0, -4],
+        });
+      }
+      selection.hoverTooltip.setLatLng(latlng).setContent(html);
+      if (!map.hasLayer(selection.hoverTooltip)) selection.hoverTooltip.addTo(map);
+    }
+
+    function createXScale(domain, scaleMode = "linear") {
+      const min = Number(domain?.min);
+      const max = Number(domain?.max);
+      if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) {
+        return null;
+      }
+
+      const range = max - min;
+      const clamped = (value) => Math.max(min, Math.min(max, value));
+
+      if (scaleMode === "softlog") {
+        const compression = Math.max(range / 12, 1);
+        const toUnit = (value) => Math.log1p((clamped(value) - min) / compression);
+        const fromUnit = (unit) => min + compression * Math.expm1(unit);
+        const minUnit = toUnit(min);
+        const maxUnit = toUnit(max);
+        if (Number.isFinite(minUnit) && Number.isFinite(maxUnit) && maxUnit > minUnit) {
+          return { min, max, minUnit, maxUnit, toUnit, fromUnit };
+        }
+      }
+
+      const toUnit = (value) => clamped(value);
+      const fromUnit = (unit) => unit;
+      return { min, max, minUnit: min, maxUnit: max, toUnit, fromUnit };
+    }
+
+    function buildHistogram(values, binsCount = 12, scale = null) {
+      if (!Array.isArray(values) || values.length === 0) return null;
+
+      if (!scale) return null;
+
+      const counts = new Array(binsCount).fill(0);
+      const unitRange = scale.maxUnit - scale.minUnit;
+      if (!Number.isFinite(unitRange) || unitRange <= 0) return null;
+
+      for (const value of values) {
+        const unit = scale.toUnit(value);
+        const ratio = (unit - scale.minUnit) / unitRange;
+        const idx = Math.min(binsCount - 1, Math.floor(Math.max(0, ratio) * binsCount));
+        counts[idx] += 1;
+      }
+
+      return { counts, maxCount: Math.max(...counts, 1) };
+    }
+
+    function smoothPath(points) {
+      if (points.length === 0) return "";
+      if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+
+      let d = `M ${points[0].x} ${points[0].y}`;
+      for (let i = 0; i < points.length - 1; i += 1) {
+        const p0 = points[i - 1] || points[i];
+        const p1 = points[i];
+        const p2 = points[i + 1];
+        const p3 = points[i + 2] || p2;
+
+        const cp1x = p1.x + (p2.x - p0.x) / 6;
+        const cp1y = p1.y + (p2.y - p0.y) / 6;
+        const cp2x = p2.x - (p3.x - p1.x) / 6;
+        const cp2y = p2.y - (p3.y - p1.y) / 6;
+
+        d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`;
+      }
+      return d;
+    }
+
+    function renderLineChart(containerId, values, axisFormatter, strokeColor, domain = null, hoverFormatter = axisFormatter, scaleMode = "linear", xTickCount = 3) {
+      const el = document.getElementById(containerId);
+      const fallbackDomain = getDomain(values);
+      const activeDomain = domain || fallbackDomain;
+      const scale = createXScale(activeDomain, scaleMode);
+      const histogram = buildHistogram(values, 12, scale);
+
+      if (!histogram) {
+        el.innerHTML = `<div class="chart-empty">Onvoldoende gegevens voor deze grafiek.</div>`;
+        return;
+      }
+
+      const width = 360;
+      const height = 170;
+      const pad = { top: 12, right: 12, bottom: 28, left: 36 };
+      const innerW = width - pad.left - pad.right;
+      const innerH = height - pad.top - pad.bottom;
+
+      const { counts, maxCount } = histogram;
+      const points = counts.map((count, idx) => {
+        const x = pad.left + (idx / (counts.length - 1 || 1)) * innerW;
+        const y = pad.top + (1 - count / (maxCount || 1)) * innerH;
+        return { x, y };
+      });
+
+      const linePath = smoothPath(points);
+      const areaPath = `${linePath} L ${pad.left + innerW} ${pad.top + innerH} L ${pad.left} ${pad.top + innerH} Z`;
+
+      const yTicks = [0, Math.round(maxCount / 2), maxCount];
+      const safeTickCount = Math.max(2, Math.min(8, Math.floor(xTickCount)));
+      const xTicks = Array.from({ length: safeTickCount }, (_unused, idx) => {
+        const ratio = safeTickCount === 1 ? 0 : idx / (safeTickCount - 1);
+        const unit = scale.minUnit + ratio * (scale.maxUnit - scale.minUnit);
+        return scale.fromUnit(unit);
+      });
+
+      const yGrid = yTicks
+        .map((v) => {
+          const y = pad.top + (1 - v / (maxCount || 1)) * innerH;
+          return `<line x1="${pad.left}" y1="${y}" x2="${pad.left + innerW}" y2="${y}" stroke="#ece7dd" stroke-width="1" />`;
+        })
+        .join("");
+
+      const yLabels = yTicks
+        .map((v) => {
+          const y = pad.top + (1 - v / (maxCount || 1)) * innerH;
+          return `<text x="${pad.left - 6}" y="${y + 4}" text-anchor="end" font-size="10" fill="#6b7280">${v}</text>`;
+        })
+        .join("");
+
+      const xLabels = xTicks
+        .map((v, i) => {
+          const x = pad.left + (i / (xTicks.length - 1 || 1)) * innerW;
+          return `<text x="${x}" y="${height - 7}" text-anchor="middle" font-size="10" fill="#6b7280">${axisFormatter(v)}</text>`;
+        })
+        .join("");
+
+      const dots = points
+        .map((p) => `<circle cx="${p.x}" cy="${p.y}" r="2.4" fill="${strokeColor}" stroke="#fff" stroke-width="1.5"/>`)
+        .join("");
+
+      el.innerHTML = `
+        <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Lijngrafiek">
+          ${yGrid}
+          <line x1="${pad.left}" y1="${pad.top + innerH}" x2="${pad.left + innerW}" y2="${pad.top + innerH}" stroke="#9ca3af" stroke-width="1" />
+          <line x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${pad.top + innerH}" stroke="#9ca3af" stroke-width="1" />
+          <path d="${areaPath}" fill="${strokeColor}" opacity="0.14"></path>
+          <path d="${linePath}" fill="none" stroke="${strokeColor}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path>
+          ${dots}
+          <line class="chart-hover-line" x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${pad.top + innerH}"></line>
+          <circle class="chart-hover-dot" cx="${pad.left}" cy="${pad.top + innerH}" r="4" fill="${strokeColor}" stroke="#fff" stroke-width="2"></circle>
+          ${yLabels}
+          ${xLabels}
+        </svg>
+        <div class="chart-hover-chip"></div>
+      `;
+
+      const svg = el.querySelector("svg");
+      const hoverLine = el.querySelector(".chart-hover-line");
+      const hoverDot = el.querySelector(".chart-hover-dot");
+      const hoverChip = el.querySelector(".chart-hover-chip");
+      const binCount = counts.length;
+      const unitSpan = scale.maxUnit - scale.minUnit;
+
+      const hideHover = () => {
+        hoverLine.style.opacity = "0";
+        hoverDot.style.opacity = "0";
+        hoverChip.style.opacity = "0";
+      };
+
+      const showHover = (event) => {
+        const rect = svg.getBoundingClientRect();
+        if (!rect.width || !rect.height) return;
+
+        const scaleX = width / rect.width;
+        const px = (event.clientX - rect.left) * scaleX;
+        const clampedX = Math.max(pad.left, Math.min(pad.left + innerW, px));
+        const ratio = innerW <= 0 ? 0 : (clampedX - pad.left) / innerW;
+        const idx = Math.max(0, Math.min(binCount - 1, Math.round(ratio * (binCount - 1))));
+        const point = points[idx];
+
+        const bucketLeftUnit = scale.minUnit + (idx / binCount) * unitSpan;
+        const bucketRightUnit = scale.minUnit + ((idx + 1) / binCount) * unitSpan;
+        const bucketLeft = scale.fromUnit(bucketLeftUnit);
+        const bucketRight = scale.fromUnit(bucketRightUnit);
+        hoverChip.textContent = `${hoverFormatter(bucketLeft)} - ${hoverFormatter(bucketRight)} | ${counts[idx]} kavels`;
+
+        hoverLine.setAttribute("x1", String(point.x));
+        hoverLine.setAttribute("x2", String(point.x));
+        hoverDot.setAttribute("cx", String(point.x));
+        hoverDot.setAttribute("cy", String(point.y));
+
+        const localX = event.clientX - rect.left;
+        const chipWidth = hoverChip.offsetWidth || 0;
+        const minLeft = 8;
+        const maxLeft = Math.max(minLeft, rect.width - chipWidth - 8);
+        const chipLeft = Math.max(minLeft, Math.min(maxLeft, localX - chipWidth / 2));
+        hoverChip.style.left = `${chipLeft}px`;
+
+        hoverLine.style.opacity = "1";
+        hoverDot.style.opacity = "1";
+        hoverChip.style.opacity = "1";
+      };
+
+      svg.addEventListener("mousemove", showHover);
+      svg.addEventListener("mouseenter", showHover);
+      svg.addEventListener("mouseleave", hideHover);
+      svg.addEventListener("touchstart", (event) => {
+        if (event.touches && event.touches[0]) showHover(event.touches[0]);
+      }, { passive: true });
+      svg.addEventListener("touchmove", (event) => {
+        if (event.touches && event.touches[0]) showHover(event.touches[0]);
+      }, { passive: true });
+      svg.addEventListener("touchend", hideHover, { passive: true });
+    }
+
+    function renderCharts(data) {
+      renderLineChart("priceLineChart", data?.priceValues || [], formatEuroAxis, "#dc2626", selection.chartDomains.price, formatEuro, "softlog", 5);
+      const sizeValuesInRange = filterValuesToDomain(data?.sizeValues || [], selection.chartDomains.size);
+      renderLineChart("sizeLineChart", sizeValuesInRange, formatM2Axis, "#2563eb", selection.chartDomains.size, formatArea, "softlog", 5);
+    }
+
+    function updatePanelHealthBars(data) {
+      const host = document.getElementById("panelHealthBars");
+      if (!host) return;
+
+      if (!data) {
+        host.innerHTML = `
+          ${buildHealthRow("Kavelaanbod", null, "Geen data")}
+          ${buildHealthRow("Gem. prijs vs markt", null, "Geen data")}
+          ${buildHealthRow("Prijs per m2 vs markt", null, "Geen data")}
+        `;
+        return;
+      }
+
+      const market = selection.marketBenchmarks;
+      const kavelScore = percentileRank(market.kavelCounts, data.kavelCount);
+      const avgPriceScore = lowerIsBetterScore(percentileRank(market.avgPrices, data.avgPrice));
+      const priceM2Score = lowerIsBetterScore(percentileRank(market.avgPricePerM2, data.avgPricePerM2));
+
+      host.innerHTML = `
+        ${buildHealthRow("Kavelaanbod", kavelScore, `${intFmt.format(data.kavelCount)} kavels`)}
+        ${buildHealthRow("Gem. prijs vs markt", avgPriceScore, formatEuro(data.avgPrice))}
+        ${buildHealthRow("Prijs per m2 vs markt", priceM2Score, formatEuroPerM2(data.avgPricePerM2))}
+      `;
+    }
+
+    function setPanel(data) {
+      document.getElementById("gemeenteName").textContent = data?.displayName || "Selecteer een gemeente";
+
+      const rows = data
+        ? [
+            ["Kavels in dataset", intFmt.format(data.kavelCount)],
+            ["Kavels met vraagprijs", intFmt.format(data.pricedCount)],
+            ["Laagste totaalprijs", formatEuro(data.minPrice)],
+            ["Mediaan totaalprijs", formatEuro(data.medianPrice)],
+            ["Gemiddelde totaalprijs", formatEuro(data.avgPrice)],
+            ["Hoogste totaalprijs", formatEuro(data.maxPrice)],
+            ["Gemiddelde kavelgrootte", formatArea(data.avgArea)],
+            ["Mediaan kavelgrootte", formatArea(data.medianArea)],
+            ["Gemiddelde prijs per m2", formatEuroPerM2(data.avgPricePerM2)],
+            ["75e percentiel prijs per m2", formatEuroPerM2(data.p75PricePerM2)],
+            ["Aanbod <= 300k", formatCountShare(data.under300Count, data.pricedCount)],
+            ["Aanbod <= 500k", formatCountShare(data.under500Count, data.pricedCount)],
+            ["Aanbod >= 750k", formatCountShare(data.over750Count, data.pricedCount)],
+            ["Aanbod >= 1M", formatCountShare(data.over1mCount, data.pricedCount)],
+            ["Indicatieve grondkosten (150 m2)", formatEuro(data.exampleCost150)],
+            ["Indicatieve grondkosten (250 m2)", formatEuro(data.exampleCost250)],
+          ]
+        : [
+            ["Kavels in dataset", "-"],
+            ["Kavels met vraagprijs", "-"],
+            ["Laagste totaalprijs", "-"],
+            ["Mediaan totaalprijs", "-"],
+            ["Gemiddelde totaalprijs", "-"],
+            ["Hoogste totaalprijs", "-"],
+            ["Gemiddelde kavelgrootte", "-"],
+            ["Mediaan kavelgrootte", "-"],
+            ["Gemiddelde prijs per m2", "-"],
+            ["75e percentiel prijs per m2", "-"],
+            ["Aanbod <= 300k", "-"],
+            ["Aanbod <= 500k", "-"],
+            ["Aanbod >= 750k", "-"],
+            ["Aanbod >= 1M", "-"],
+            ["Indicatieve grondkosten (150 m2)", "-"],
+            ["Indicatieve grondkosten (250 m2)", "-"],
+          ];
+
+      document.getElementById("statsTableBody").innerHTML = rows
+        .map(([metric, value]) => `<tr><td class="metric">${metric}</td><td class="value">${value}</td></tr>`)
+        .join("");
+
+      updatePanelHealthBars(data || null);
+      renderCharts(data || null);
+    }
+
+    function getPriceColor(avgPricePerM2) {
+      if (!Number.isFinite(avgPricePerM2)) return noDataColor;
+      const t = selection.thresholds;
+      if (avgPricePerM2 <= t[0]) return pricePalette[0];
+      if (avgPricePerM2 <= t[1]) return pricePalette[1];
+      if (avgPricePerM2 <= t[2]) return pricePalette[2];
+      if (avgPricePerM2 <= t[3]) return pricePalette[3];
+      if (avgPricePerM2 <= t[4]) return pricePalette[4];
+      if (avgPricePerM2 <= t[5]) return pricePalette[5];
+      return pricePalette[6];
+    }
+
+    function createLegend() {
+      const legend = L.control({ position: "bottomright" });
+      legend.onAdd = function () {
+        const div = L.DomUtil.create("div", "legend");
+        const [t1, t2, t3, t4, t5, t6] = selection.thresholds;
+        const labels = [
+          `<= ${formatEuroPerM2(t1)}`,
+          `${formatEuroPerM2(t1)} - ${formatEuroPerM2(t2)}`,
+          `${formatEuroPerM2(t2)} - ${formatEuroPerM2(t3)}`,
+          `${formatEuroPerM2(t3)} - ${formatEuroPerM2(t4)}`,
+          `${formatEuroPerM2(t4)} - ${formatEuroPerM2(t5)}`,
+          `${formatEuroPerM2(t5)} - ${formatEuroPerM2(t6)}`,
+          `> ${formatEuroPerM2(t6)}`,
+        ];
+
+        div.innerHTML = `<h4>Gem. prijs per m2</h4>`;
+        for (let i = 0; i < pricePalette.length; i += 1) {
+          div.innerHTML += `<div class="legend-row"><span class="legend-box" style="background:${pricePalette[i]}"></span><span>${labels[i]}</span></div>`;
+        }
+        div.innerHTML += `<div class="legend-row"><span class="legend-box" style="background:${noDataColor}"></span><span>Geen kaveldata</span></div>`;
+        return div;
+      };
+      legend.addTo(map);
+    }
+
+    function resolveCitySlug(feature, normSlugToSlug) {
+      const baseName = normalizeKey(feature.properties.NAME_2);
+      const province = normalizeKey(feature.properties.NAME_1);
+
+      if (baseName === "bergen") {
+        if (province.includes("limburg")) return "bergen-(l)";
+        if (province.includes("noordholland")) return "bergen-nh";
+      }
+
+      if (boundaryAliasToCitySlug[baseName]) return boundaryAliasToCitySlug[baseName];
+      return normSlugToSlug.get(baseName) || null;
+    }
+
+    function resetLayerStyle(layer) {
+      const featureData = layer.feature.properties.__kavelData;
+      layer.setStyle({
+        weight: 0.9,
+        color: "#ffffff",
+        fillOpacity: 0.82,
+        fillColor: getPriceColor(featureData?.avgPricePerM2),
+      });
+    }
+
+    function highlightLayer(layer) {
+      layer.setStyle({ weight: 0.9, color: "#ffffff", fillOpacity: 0.9 });
+    }
+
+    function attachLayerEvents(layer) {
+      const data = layer.feature.properties.__kavelData;
+      const name = layer.feature.properties.NAME_2;
+      const label = buildHoverTooltipContent(data, name);
+
+      layer.on({
+        mouseover: (event) => {
+          if (selection.hoveredLayer && selection.hoveredLayer !== layer) resetLayerStyle(selection.hoveredLayer);
+          selection.hoveredLayer = layer;
+          highlightLayer(layer);
+          showHoverTooltip(event.latlng, label);
+        },
+        mousemove: (event) => {
+          showHoverTooltip(event.latlng, label);
+        },
+        mouseout: () => {
+          hideHoverTooltip();
+          resetLayerStyle(layer);
+          if (selection.hoveredLayer === layer) selection.hoveredLayer = null;
+        },
+        click: () => {
+          hideHoverTooltip();
+          setPanel(data || {
+            displayName: name,
+            avgPrice: null,
+            medianPrice: null,
+            minPrice: null,
+            maxPrice: null,
+            avgArea: null,
+            medianArea: null,
+            avgPricePerM2: null,
+            p75PricePerM2: null,
+            kavelCount: 0,
+            pricedCount: 0,
+            under300Count: null,
+            under500Count: null,
+            over750Count: null,
+            over1mCount: null,
+            exampleCost150: null,
+            exampleCost250: null,
+            priceValues: [],
+            sizeValues: [],
+          });
+        },
+      });
+    }
+
+    async function buildMap() {
+      try {
+        const [kavelData, boundaries] = await Promise.all([
+          fetch("./zelfbouw_kavels_model.json").then((r) => {
+            if (!r.ok) throw new Error("Kon zelfbouw_kavels_model.json niet laden");
+            return r.json();
+          }),
+          fetch("./nld_gemeenten.geojson").then((r) => {
+            if (!r.ok) throw new Error("Kon nld_gemeenten.geojson niet laden");
+            return r.json();
+          }),
+        ]);
+
+        const statsBySlug = new Map();
+        const normSlugToSlug = new Map();
+        const allPriceValues = [];
+        const allSizeValues = [];
+        const allKavelCounts = [];
+        const allMunicipalityAvgPrices = [];
+        const allMunicipalityAvgPricePerM2 = [];
+
+        for (const city of kavelData.cities) {
+          const lots = Array.isArray(city.lots) ? city.lots : [];
+          const prices = lots.map((lot) => Number(lot.price_eur)).filter((value) => Number.isFinite(value) && value > 0);
+          const sizes = lots.map((lot) => Number(lot.area_m2)).filter((value) => Number.isFinite(value) && value > 0);
+          const pricesPerM2 = lots
+            .map((lot) => {
+              const price = Number(lot.price_eur);
+              const size = Number(lot.area_m2);
+              if (!Number.isFinite(price) || !Number.isFinite(size) || price <= 0 || size <= 0) return null;
+              return price / size;
+            })
+            .filter((value) => Number.isFinite(value));
+
+          const sortedPrices = [...prices].sort((a, b) => a - b);
+          const sortedSizes = [...sizes].sort((a, b) => a - b);
+          const sortedPricesPerM2 = [...pricesPerM2].sort((a, b) => a - b);
+
+          const minPrice = sortedPrices.length ? sortedPrices[0] : null;
+          const maxPrice = sortedPrices.length ? sortedPrices[sortedPrices.length - 1] : null;
+
+          const slug = city.city_slug;
+          const displayName = city.city_name || toTitle(slug);
+          const avgPricePerM2 = average(pricesPerM2);
+          const avgPrice = average(prices);
+
+          statsBySlug.set(slug, {
+            slug,
+            displayName,
+            kavelCount: city.lot_count ?? lots.length,
+            pricedCount: prices.length,
+            minPrice,
+            maxPrice,
+            medianPrice: quantile(sortedPrices, 0.5),
+            avgPrice,
+            medianArea: quantile(sortedSizes, 0.5),
+            avgArea: average(sizes),
+            avgPricePerM2,
+            p75PricePerM2: quantile(sortedPricesPerM2, 0.75),
+            under300Count: prices.filter((value) => value <= 300000).length,
+            under500Count: prices.filter((value) => value <= 500000).length,
+            over750Count: prices.filter((value) => value >= 750000).length,
+            over1mCount: prices.filter((value) => value >= 1000000).length,
+            exampleCost150: Number.isFinite(avgPricePerM2) ? avgPricePerM2 * 150 : null,
+            exampleCost250: Number.isFinite(avgPricePerM2) ? avgPricePerM2 * 250 : null,
+            priceValues: prices,
+            sizeValues: sizes,
+          });
+
+          allPriceValues.push(...prices);
+          allSizeValues.push(...sizes);
+          allKavelCounts.push(city.lot_count ?? lots.length);
+          if (Number.isFinite(avgPrice)) allMunicipalityAvgPrices.push(avgPrice);
+          if (Number.isFinite(avgPricePerM2)) allMunicipalityAvgPricePerM2.push(avgPricePerM2);
+
+          normSlugToSlug.set(normalizeKey(slug), slug);
+        }
+
+        selection.chartDomains = {
+          price: getRobustDomain(allPriceValues),
+          size: getSelfBuildSizeDomain(allSizeValues),
+        };
+
+        selection.marketBenchmarks = {
+          kavelCounts: [...allKavelCounts].sort((a, b) => a - b),
+          avgPrices: [...allMunicipalityAvgPrices].sort((a, b) => a - b),
+          avgPricePerM2: [...allMunicipalityAvgPricePerM2].sort((a, b) => a - b),
+        };
+
+        const features = boundaries.features.filter((f) => f.properties.TYPE_2 === "Gemeente");
+        for (const feature of features) {
+          const slug = resolveCitySlug(feature, normSlugToSlug);
+          feature.properties.__kavelData = slug ? statsBySlug.get(slug) || null : null;
+          feature.properties.__resolvedSlug = slug;
+        }
+
+        const pricedValues = features
+          .map((f) => f.properties.__kavelData?.avgPricePerM2)
+          .filter(Number.isFinite)
+          .sort((a, b) => a - b);
+
+        selection.thresholds = [
+          quantile(pricedValues, 0.14),
+          quantile(pricedValues, 0.28),
+          quantile(pricedValues, 0.42),
+          quantile(pricedValues, 0.56),
+          quantile(pricedValues, 0.70),
+          quantile(pricedValues, 0.84),
+        ];
+
+        selection.totalCount = features.length;
+        selection.mappedCount = features.filter((f) => f.properties.__kavelData).length;
+
+        selection.geoLayer = L.geoJSON({ type: "FeatureCollection", features }, {
+          style: (feature) => ({
+            weight: 0.9,
+            color: "#ffffff",
+            fillOpacity: 0.82,
+            fillColor: getPriceColor(feature.properties.__kavelData?.avgPricePerM2),
+          }),
+          onEachFeature: (_feature, layer) => {
+            attachLayerEvents(layer);
+          },
+        }).addTo(map);
+
+        if (selection.geoLayer.getLayers().length > 0) {
+          map.fitBounds(selection.geoLayer.getBounds(), { padding: [8, 8] });
+        } else {
+          map.setView([52.2, 5.3], 8);
+        }
+
+        map.on("mouseout", hideHoverTooltip);
+        map.getContainer().addEventListener("mouseleave", hideHoverTooltip);
+        document.addEventListener("mousemove", (event) => {
+          const rect = map.getContainer().getBoundingClientRect();
+          const outsideMap =
+            event.clientX < rect.left || event.clientX > rect.right ||
+            event.clientY < rect.top || event.clientY > rect.bottom;
+          if (outsideMap) {
+            hideHoverTooltip();
+            if (selection.hoveredLayer) {
+              resetLayerStyle(selection.hoveredLayer);
+              selection.hoveredLayer = null;
+            }
+          }
+        }, { passive: true });
+
+        createLegend();
+
+        document.getElementById("datasetChip").textContent = `${intFmt.format(kavelData.summary.lots_total)} kavels in ${intFmt.format(kavelData.summary.cities_total)} gemeenten`;
+        document.getElementById("mappingStatus").textContent = `Gekoppeld: ${intFmt.format(selection.mappedCount)} van ${intFmt.format(selection.totalCount)} gemeentevlakken. Fusiegemeenten zijn via alias-koppelingen verwerkt.`;
+
+        let defaultCityData = statsBySlug.get("amsterdam") || null;
+        if (!defaultCityData) {
+          defaultCityData = Array.from(statsBySlug.values()).find((city) => normalizeKey(city.displayName) === "amsterdam") || null;
+        }
+
+        setPanel(defaultCityData || null);
+      } catch (error) {
+        document.getElementById("mappingStatus").textContent = "Laden van kaartdata mislukt. Start een lokale webserver in deze map en herlaad de pagina.";
+        document.getElementById("datasetChip").textContent = "Laden mislukt";
+        console.error(error);
+      }
+    }
+
+    buildMap();
+  </script>
+</body>
+</html>
