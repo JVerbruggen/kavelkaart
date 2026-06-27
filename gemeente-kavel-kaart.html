@@ -397,9 +397,23 @@
     }
 
     @media (max-width: 1024px) {
-      .layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
-      .panel { border-right: 0; border-bottom: 1px solid var(--line); }
-      #map { min-height: 70vh; }
+      .layout {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+          "map"
+          "panel";
+        grid-template-rows: minmax(52vh, 62vh) auto;
+      }
+      .panel {
+        grid-area: panel;
+        border-right: 0;
+        border-top: 1px solid var(--line);
+        border-bottom: 0;
+      }
+      #map {
+        grid-area: map;
+        min-height: 62vh;
+      }
     }
   </style>
 </head>
@@ -1087,6 +1101,35 @@
       const data = layer.feature.properties.__kavelData;
       const name = layer.feature.properties.NAME_2;
       const label = buildHoverTooltipContent(data, name);
+      const panelData = data || {
+        displayName: name,
+        avgPrice: null,
+        medianPrice: null,
+        minPrice: null,
+        maxPrice: null,
+        avgArea: null,
+        medianArea: null,
+        avgPricePerM2: null,
+        p75PricePerM2: null,
+        kavelCount: 0,
+        pricedCount: 0,
+        under300Count: null,
+        under500Count: null,
+        over750Count: null,
+        over1mCount: null,
+        exampleCost150: null,
+        exampleCost250: null,
+        priceValues: [],
+        sizeValues: [],
+      };
+
+      const activateSelection = (event) => {
+        if (selection.hoveredLayer && selection.hoveredLayer !== layer) resetLayerStyle(selection.hoveredLayer);
+        selection.hoveredLayer = layer;
+        highlightLayer(layer);
+        if (event?.latlng) showHoverTooltip(event.latlng, label);
+        setPanel(panelData);
+      };
 
       layer.on({
         mouseover: (event) => {
@@ -1103,29 +1146,11 @@
           resetLayerStyle(layer);
           if (selection.hoveredLayer === layer) selection.hoveredLayer = null;
         },
-        click: () => {
-          hideHoverTooltip();
-          setPanel(data || {
-            displayName: name,
-            avgPrice: null,
-            medianPrice: null,
-            minPrice: null,
-            maxPrice: null,
-            avgArea: null,
-            medianArea: null,
-            avgPricePerM2: null,
-            p75PricePerM2: null,
-            kavelCount: 0,
-            pricedCount: 0,
-            under300Count: null,
-            under500Count: null,
-            over750Count: null,
-            over1mCount: null,
-            exampleCost150: null,
-            exampleCost250: null,
-            priceValues: [],
-            sizeValues: [],
-          });
+        click: (event) => {
+          activateSelection(event);
+        },
+        touchstart: (event) => {
+          activateSelection(event);
         },
       });
     }
