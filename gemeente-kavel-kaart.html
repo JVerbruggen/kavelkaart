@@ -543,6 +543,37 @@
 
     const map = L.map("map", { zoomControl: true, minZoom: 7, maxZoom: 12 });
 
+    const mobileMapQuery = window.matchMedia("(max-width: 768px) and (pointer: coarse)");
+
+    function setPhoneMapInteraction(disabled) {
+      if (disabled) {
+        map.dragging.disable();
+        map.touchZoom.disable();
+        map.doubleClickZoom.disable();
+        map.boxZoom.disable();
+        map.keyboard.disable();
+        map.scrollWheelZoom.disable();
+        if (map.tap) map.tap.disable();
+        return;
+      }
+
+      map.dragging.enable();
+      map.touchZoom.enable();
+      map.doubleClickZoom.enable();
+      map.boxZoom.enable();
+      map.keyboard.enable();
+      map.scrollWheelZoom.enable();
+      if (map.tap) map.tap.enable();
+    }
+
+    setPhoneMapInteraction(mobileMapQuery.matches);
+
+    if (typeof mobileMapQuery.addEventListener === "function") {
+      mobileMapQuery.addEventListener("change", (event) => setPhoneMapInteraction(event.matches));
+    } else if (typeof mobileMapQuery.addListener === "function") {
+      mobileMapQuery.addListener((event) => setPhoneMapInteraction(event.matches));
+    }
+
     L.tileLayer("https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png", {
       attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
       subdomains: "abcd",
