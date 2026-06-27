@@ -24,6 +24,10 @@
 
     * { box-sizing: border-box; }
 
+    html, body {
+      height: 100%;
+    }
+
     body {
       margin: 0;
       font-family: "Space Grotesk", sans-serif;
@@ -33,8 +37,10 @@
         radial-gradient(circle at 80% 10%, #ffe7db 0%, transparent 45%),
         var(--bg);
       min-height: 100vh;
+      height: 100dvh;
       display: grid;
       grid-template-rows: auto 1fr;
+      overflow: hidden;
     }
 
     .topbar {
@@ -75,6 +81,7 @@
     .layout {
       display: grid;
       grid-template-columns: minmax(320px, 430px) 1fr;
+      min-width: 0;
       min-height: 0;
     }
 
@@ -406,17 +413,18 @@
         grid-template-areas:
           "map"
           "panel";
-        grid-template-rows: minmax(52vh, 62vh) auto;
+        grid-template-rows: minmax(46vh, 52vh) minmax(0, 1fr);
       }
       .panel {
         grid-area: panel;
         border-right: 0;
         border-top: 1px solid var(--line);
         border-bottom: 0;
+        min-height: 0;
       }
       #map {
         grid-area: map;
-        min-height: 62vh;
+        min-height: 0;
       }
     }
 
